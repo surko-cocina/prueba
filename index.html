@@ -1399,7 +1399,17 @@ function setShipping(lat, lon, label) {
 function onAddressInput(val) {
   clearTimeout(addrDebounce);
   const sug = document.getElementById('addr-suggestions');
-  if (!val || val.length < 4) { sug.classList.remove('open'); sug.innerHTML=''; return; }
+  if (!val || val.length < 4) {
+    sug.classList.remove('open'); sug.innerHTML = '';
+    // Reset shipping if field is cleared
+    if (!val || val.length === 0) {
+      shippingCost = 0;
+      const st = document.getElementById('ship-status');
+      if (st) st.textContent = '';
+      updateCartUI();
+    }
+    return;
+  }
   sug.classList.add('open');
   sug.innerHTML = '<div class="addr-sug-loading">Buscando...</div>';
   addrDebounce = setTimeout(() => fetchAddressSuggestions(val), 500);
@@ -1409,7 +1419,7 @@ async function fetchAddressSuggestions(query) {
   const sug = document.getElementById('addr-suggestions');
   try {
     const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=ar&limit=5&addressdetails=1`;
-    const res = await fetch(url, { headers: { 'Accept-Language': 'es' } });
+    const res = await fetch(url);
     const data = await res.json();
     if (!data.length) { sug.innerHTML = '<div class="addr-sug-loading">Sin resultados</div>'; return; }
     sug.innerHTML = data.map((d, i) =>
@@ -1527,6 +1537,8 @@ window.open(
 
 cart = [];
 shippingCost = 0;
+const st = document.getElementById('ship-status');
+if (st) st.textContent = '';
 updateCartUI();
 closeCart();
 
