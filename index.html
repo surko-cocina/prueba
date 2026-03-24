@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -402,6 +402,25 @@ img{display:block;}
 }
 .cf-field input:focus,.cf-field select:focus,.cf-field textarea:focus{border-color:rgba(0,0,0,.25);}
 .cf-field textarea{resize:vertical;min-height:50px;}
+/* address autocomplete */
+.addr-wrap{position:relative;}
+.addr-suggestions{
+  position:absolute;top:100%;left:0;right:0;z-index:9999;
+  background:var(--bg2);border:1px solid var(--border);border-top:none;
+  max-height:180px;overflow-y:auto;display:none;
+  box-shadow:var(--shadow);
+}
+.addr-suggestions.open{display:block;}
+.addr-sug-item{
+  padding:8px 10px;font-size:11px;color:var(--text);cursor:pointer;
+  border-bottom:1px solid var(--border);line-height:1.4;
+  transition:var(--trans);
+}
+.addr-sug-item:last-child{border-bottom:none;}
+.addr-sug-item:hover{background:var(--bg3);color:var(--gold-dk);}
+.addr-sug-loading{padding:8px 10px;font-size:11px;color:var(--text-lt);font-style:italic;}
+/* shipping status */
+.ship-status{font-size:10px;color:var(--text-lt);margin-top:3px;font-style:italic;}
 /* cart footer */
 .cart-foot{padding:18px 24px;border-top:1px solid var(--border);}
 .cart-subtotals{margin-bottom:14px;}
@@ -964,14 +983,14 @@ img{display:block;}
         <div class="cf-field"><label>Teléfono *</label><input type="tel" id="cf-phone" placeholder="+54 9 ..."></div>
         <div class="cf-field"><label>Ciudad</label><input type="text" id="cf-city" placeholder="Tu ciudad"></div>
         <div class="cf-field"><label>Fecha Deseada</label><input type="date" id="cf-date"></div>
-        <div class="cf-field full"><label>Dirección de Envío</label><input type="text" id="cf-address" placeholder="Calle, número, ciudad"></div>
+        <div class="cf-field full"><label>Dirección de Envío</label><div class="addr-wrap"><input type="text" id="cf-address" placeholder="Ej: Córdoba 1200, Rosario" autocomplete="off" oninput="onAddressInput(this.value)"><div class="addr-suggestions" id="addr-suggestions"></div></div><div class="ship-status" id="ship-status"></div></div>
         <div class="cf-field full"><label>Observaciones</label><textarea id="cf-notes" placeholder="Personalizaciones, alergias, dedicatoria..."></textarea></div>
       </div>
     </div>
     <div class="cart-foot">
       <div class="cart-subtotals">
         <div class="cart-subtotal-row"><span class="csr-label">Subtotal</span><span class="csr-val" id="cart-subtotal">$0</span></div>
-        <div class="cart-subtotal-row"><span class="csr-label">Envío</span><span class="csr-ship">Calculado en checkout</span></div>
+        <div class="cart-subtotal-row"><span class="csr-label">Envío</span><span class="csr-ship" id="cart-shipping-display">Ingresá tu dirección</span></div>
       </div>
       <div class="cart-total-row">
         <span class="cart-total-label">Total</span>
@@ -1353,6 +1372,70 @@ function checkPassword(){const v=document.getElementById('pwd-input').value;cons
 function goBack(){document.getElementById('client-mode').style.display='none';document.getElementById('personal-mode').style.display='none';const as=document.getElementById('access-screen');as.style.cssText='display:flex;opacity:0;transform:translateY(14px);transition:all .32s ease;';setTimeout(()=>{as.style.opacity='1';as.style.transform='translateY(0)';},40);}
 function showSection(name,el){document.querySelectorAll('.admin-section').forEach(s=>s.classList.add('hidden'));document.querySelectorAll('.sb-item').forEach(i=>i.classList.remove('active'));document.getElementById('section-'+name).classList.remove('hidden');if(el)el.classList.add('active');if(name==='dashboard')initAdminDashboard();if(name==='orders')renderOrdersTable();if(name==='products')renderProductsTable();if(name==='categories')renderCategoriesAdmin();if(name==='clients')renderClientsAdmin();if(name==='config')loadConfig();if(name==='banner'){const s=LS.get('banner_img');updateBannerAdminPreview(s||null);const rb=document.getElementById('remove-banner-img-btn');if(rb)rb.style.display=s?'block':'none';}}
 
+// ── SHIPPING CALCULATION ──────────────────────────────────────────
+const STORE_LAT = -32.933261, STORE_LON = -60.798268; // Funes, Rosario
+const SHIP_RATE = 500; // $ per km
+let shippingCost = 0;
+let addrDebounce = null;
+
+function haversine(lat1, lon1, lat2, lon2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat/2)**2 +
+    Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLon/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function setShipping(lat, lon, label) {
+  const dist = haversine(STORE_LAT, STORE_LON, lat, lon);
+  const km = Math.ceil(dist);
+  shippingCost = km * SHIP_RATE;
+  const el = document.getElementById('ship-status');
+  if (el) el.textContent = `📍 ${km} km desde Funes`;
+  updateCartUI();
+}
+
+function onAddressInput(val) {
+  clearTimeout(addrDebounce);
+  const sug = document.getElementById('addr-suggestions');
+  if (!val || val.length < 4) { sug.classList.remove('open'); sug.innerHTML=''; return; }
+  sug.classList.add('open');
+  sug.innerHTML = '<div class="addr-sug-loading">Buscando...</div>';
+  addrDebounce = setTimeout(() => fetchAddressSuggestions(val), 500);
+}
+
+async function fetchAddressSuggestions(query) {
+  const sug = document.getElementById('addr-suggestions');
+  try {
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=ar&limit=5&addressdetails=1`;
+    const res = await fetch(url, { headers: { 'Accept-Language': 'es' } });
+    const data = await res.json();
+    if (!data.length) { sug.innerHTML = '<div class="addr-sug-loading">Sin resultados</div>'; return; }
+    sug.innerHTML = data.map((d, i) =>
+      `<div class="addr-sug-item" onclick="selectAddress(${i},'${encodeURIComponent(d.display_name)}',${d.lat},${d.lon})">${d.display_name}</div>`
+    ).join('');
+  } catch(e) {
+    sug.innerHTML = '<div class="addr-sug-loading">Error de conexión</div>';
+  }
+}
+
+function selectAddress(i, encodedName, lat, lon) {
+  const name = decodeURIComponent(encodedName);
+  document.getElementById('cf-address').value = name;
+  const sug = document.getElementById('addr-suggestions');
+  sug.classList.remove('open'); sug.innerHTML = '';
+  setShipping(parseFloat(lat), parseFloat(lon), name);
+}
+
+document.addEventListener('click', e => {
+  const wrap = document.querySelector('.addr-wrap');
+  if (wrap && !wrap.contains(e.target)) {
+    const sug = document.getElementById('addr-suggestions');
+    if (sug) { sug.classList.remove('open'); sug.innerHTML = ''; }
+  }
+});
+
 // CLIENT STORE
 let cart=[],currentProduct=null,modalQty=1,selectedVariant='';
 function initClientStore(){
@@ -1380,7 +1463,7 @@ function changeQty(d){modalQty=Math.max(1,modalQty+d);document.getElementById('m
 function addToCartFromModal(){if(!currentProduct)return;addToCart(currentProduct,modalQty,selectedVariant);closeProductModal();showToast('✓ Agregado al carrito','success');}
 function quickAdd(id){const p=(LS.get('products')||DP).find(x=>x.id===id);if(!p||p.status==='agotado')return;addToCart(p,1,'');showToast('✓ '+p.name,'success');}
 function addToCart(product,qty,variant){const key=product.id+'|'+(variant||'');const ex=cart.find(i=>i.key===key);if(ex)ex.qty+=qty;else cart.push({key,id:product.id,name:product.name,price:product.price,emoji:product.emoji||'🧁',image:(product.images&&product.images[0])||null,variant,qty});updateCartUI();}
-function updateCartUI(){const total=cart.reduce((s,i)=>s+i.price*i.qty,0);const count=cart.reduce((s,i)=>s+i.qty,0);document.getElementById('cart-count').textContent=count;const listEl=document.getElementById('cart-items-list');const formEl=document.getElementById('cart-form-wrap');if(!cart.length){listEl.innerHTML='<div class="cart-empty"><div class="cart-empty-icon">🛍</div><p>Tu carrito está vacío</p></div>';formEl.style.display='none';}else{listEl.innerHTML=cart.map((item,idx)=>`<div class="cart-item">${item.image?`<img src="${item.image}" class="ci-img" alt="">`:`<div class="ci-emoji">${item.emoji}</div>`}<div class="ci-body"><div class="ci-name">${item.name}</div>${item.variant?`<div class="ci-var">${item.variant}</div>`:''}<div class="ci-row"><div class="ci-price">$${(item.price*item.qty).toLocaleString('es-AR')}</div><div class="ci-qty-ctrl"><button class="ciqb" onclick="cqty(${idx},-1)">−</button><span class="ciqn">${item.qty}</span><button class="ciqb" onclick="cqty(${idx},1)">+</button></div><button class="ci-del" onclick="crem(${idx})">✕</button></div></div></div>`).join('');formEl.style.display='block';const s='$'+total.toLocaleString('es-AR');document.getElementById('cart-subtotal').textContent=s;document.getElementById('cart-total-display').textContent=s;}}
+function updateCartUI(){const subtotal=cart.reduce((s,i)=>s+i.price*i.qty,0);const count=cart.reduce((s,i)=>s+i.qty,0);document.getElementById('cart-count').textContent=count;const listEl=document.getElementById('cart-items-list');const formEl=document.getElementById('cart-form-wrap');if(!cart.length){listEl.innerHTML='<div class="cart-empty"><div class="cart-empty-icon">🛍</div><p>Tu carrito está vacío</p></div>';formEl.style.display='none';}else{listEl.innerHTML=cart.map((item,idx)=>`<div class="cart-item">${item.image?`<img src="${item.image}" class="ci-img" alt="">`:`<div class="ci-emoji">${item.emoji}</div>`}<div class="ci-body"><div class="ci-name">${item.name}</div>${item.variant?`<div class="ci-var">${item.variant}</div>`:''}<div class="ci-row"><div class="ci-price">$${(item.price*item.qty).toLocaleString('es-AR')}</div><div class="ci-qty-ctrl"><button class="ciqb" onclick="cqty(${idx},-1)">−</button><span class="ciqn">${item.qty}</span><button class="ciqb" onclick="cqty(${idx},1)">+</button></div><button class="ci-del" onclick="crem(${idx})">✕</button></div></div></div>`).join('');formEl.style.display='block';const sub='$'+subtotal.toLocaleString('es-AR');document.getElementById('cart-subtotal').textContent=sub;const shipEl=document.getElementById('cart-shipping-display');if(shipEl)shipEl.textContent=shippingCost>0?'$'+shippingCost.toLocaleString('es-AR'):'Ingresá tu dirección';const grandTotal=subtotal+shippingCost;document.getElementById('cart-total-display').textContent='$'+grandTotal.toLocaleString('es-AR');}}
 function cqty(idx,d){cart[idx].qty=Math.max(1,cart[idx].qty+d);updateCartUI();}
 function crem(idx){cart.splice(idx,1);updateCartUI();}
 function openCart(){document.getElementById('cart-panel').classList.add('open');document.getElementById('cart-overlay').classList.add('open');document.body.style.overflow='hidden';}
@@ -1394,10 +1477,11 @@ function proceedCheckout(){
   const date=document.getElementById('cf-date').value;
   const address=document.getElementById('cf-address').value.trim();
   const notes=document.getElementById('cf-notes').value.trim();
-  const total=cart.reduce((s,i)=>s+i.price*i.qty,0);
+  const subtotal=cart.reduce((s,i)=>s+i.price*i.qty,0);
+  const grandTotal=subtotal+shippingCost;
   const orders=LS.get('orders')||[];
   const newId=LS.get('next_order_id')||orders.length+1;
-  orders.push({id:newId,client:name,phone,city,address,date:date||'A confirmar',notes,items:cart.map(i=>({name:i.name+(i.variant?' ('+i.variant+')':''),qty:i.qty,price:i.price})),total,status:'nuevo',created:new Date().toISOString().split('T')[0]});
+  orders.push({id:newId,client:name,phone,city,address,date:date||'A confirmar',notes,items:cart.map(i=>({name:i.name+(i.variant?' ('+i.variant+')':''),qty:i.qty,price:i.price})),subtotal,shipping:shippingCost,total:grandTotal,status:'nuevo',created:new Date().toISOString().split('T')[0]});
   LS.set('orders',orders);LS.set('next_order_id',newId+1);
   const clients=LS.get('clients')||[];const ec=clients.find(c=>c.phone===phone);
   if(ec)ec.orders=(ec.orders||0)+1;else clients.push({name,phone,city,orders:1});
@@ -1429,7 +1513,9 @@ cart.forEach(i => {
 });
 
 msg += `━━━━━━━━━━━━━━━━
-💰 *TOTAL: $${total.toLocaleString('es-AR')}*`;
+📦 Subtotal: $${subtotal.toLocaleString('es-AR')}
+🚚 Envío: ${shippingCost>0?'$'+shippingCost.toLocaleString('es-AR'):'A confirmar'}
+💰 *TOTAL: $${grandTotal.toLocaleString('es-AR')}*`;
 
 if(notes) msg += `
 💬 ${notes}`;
@@ -1440,6 +1526,7 @@ window.open(
 );
 
 cart = [];
+shippingCost = 0;
 updateCartUI();
 closeCart();
 
