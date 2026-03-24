@@ -1,1 +1,19 @@
-<!DOCTYPE html>\n<html lang="en">\n<head>\n    <meta charset="UTF-8">\n    <meta name="viewport" content="width=device-width, initial-scale=1.0">\n    <title>Cart Management</title>\n    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>\n</head>\n<body>\n    <h1>Shopping Cart</h1>\n    <div id="cart"></div>\n    <button id="checkout">Checkout</button>\n\n    <script>\n        let cart = [];\n\n        function addToCart(item) {\n            cart.push(item);\n            updateCartDisplay();\n        }\n\n        function updateCartDisplay() {\n            $('#cart').empty();\n            let total = 0;\n            cart.forEach((item, index) => {\n                $('#cart').append(`<div>${item.name} - $${item.price}</div>`);\n                total += item.price;\n            });\n            $('#cart').append(`<div>Total: $${total}</div>`);\n        }\n\n        function checkout() {\n            // Use OpenStreetMap Nominatim API for address autocomplete\n            // Assuming we have a way to get user GPS coordinates\n            let gpsCoordinates = "lat,long"; // Example coordinates\n\n            // WhatsApp integration for formatting message\n            let message = `Order Details:\nCustomer: John Doe\nItems: ${JSON.stringify(cart)}\nTotal: $${total}`;\n            let whatsappLink = `https://wa.me/123456789?text=${encodeURIComponent(message)}`;\n            window.open(whatsappLink);\n        }\n\n        $('#checkout').click(checkout);\n    <\/script>\n</body>\n</html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cart Management</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="cart.js" defer></script>
+</head>
+<body>
+    <div id="cart-panel">
+        <h2>Your Cart</h2>
+        <ul id="cart-items"></ul>
+        <div id="total-cost"></div>
+        <button id="checkout-btn">Checkout via WhatsApp</button>
+    </div>
+    <div id="notification-toast"></div>
+</body>
+</html>
