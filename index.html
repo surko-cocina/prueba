@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>SURKO — Gourmet Experience</title>
 
 <link rel="icon" type="image/png" sizes="32x32" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAADmUlEQVR4nL1W0XLcNgxc4CjpzvZMPO1M8gGd6f9/T9o4Se3Ubi7XS9vkTpZEog8SKJCinDxkTI9PlEgCy8UCJPnHVvBMTURARMk3fi7nABbOVwGIPBspZQAlpD+q/ZgQrAD8HuA5uwsA3zJCRMBKiERkFdyanwUAi5CIFoDy8dworYzZb0QU7binUK6JUQ1oWtlncS2t21vVwHeFwhh9Cmz8+1YalihCIQyl+dGZ/S8As4wR0QzAOpH8PTNSfFdGjA2hlCnJ1ohIqoEiiSLjTjKgMo3FDWRrYpfGsZJgEwCxTtuJmnI2DJPxODcRGwEhgDYbIISRSQP26SzIVKz5TkTw3iP4AbxxYGZICBARBO9RNQ289+BpnqtrdOczXF2Dprml2hDrQMx1IwxiBxGAncOX4xH72/fwg8f9768RvEffdXi4+Q1D1+Hh3Q3u37xGez6hPX3F/u4PDIPH/u4WfduCmMcM2LgYOqsGVjHEUASP8+EN/NDC9x2q3Q59e8bx/gNEApgZm6oCEeHzxwdsL68wdB3+ensD5xy+Hg+4uL5G6Dv88+kjhAl9+y/Oh7cAtFDNjFB+HyAAwXcAV2BmnE8nMDP+O+zRdx2uXlyjvrjE33/eoWq2OH8+wm23qHc7PJ5OqLZbXP30M74cDnjx8hXqpkEIHggD2DXzRlUXpQsJEesUiAiGroNrGhDR6KRpICHA7XY4frjF/v07vPrlVzSXF6jrBv1ji6rZgnkDkTBuiwAJYVHAigBAAE35IyIgZmAKFTMn1Y9dhdB3o9PdBSAC3myiUEEE0hpgzooEQF75oPSY76V+UtWYIT6MAtPcy2zZprZ4UU4NCzk1izph1oXgR+aIQDLbsbNLJ+3iLBCRqfpRuYJljiUmVcqi6ObVrgFhgbjYtRUOZvFkUBcvx+fSbEOiwiPFZOzYxjpB6Utoyp7qSHdearpbwuzcrs0ZYIHE4hAHVOWY8zXuTJR0ijpZnIAZWO1rSC2LLhHfhF7MEv1OgphKusDuUFT5snQcBW3CoYAYSgvmQfMzN0pDktObK5+yMZb5o3oTkfEsSNyJgMLsYLEbpOkk2bN0/xPTiXzndSDGnabYkqajRSDxfqCG43mf0YzJTkkPVgsMIKaNxj5yUroL6l0vAxVDQEZweZgwZ4KyNN+IEvUkyWt803wVo1mgCjo6FcOI4SpPXSJKb0SYDIjZ+KJ8SiHVYhinRyZYSd4mcFP3f5nBSaJybJRDAAAAAElFTkSuQmCC">
@@ -2464,6 +2467,7 @@ function renderProducts(catFilter,overrideList){
 function openProduct(id){const p=(LS.get('products')||DP).filter(x=>x&&x.type!=='promo').find(x=>x.id===id);if(!p)return;currentProduct=p;modalQty=1;selectedVariant='';const areaEl=document.getElementById('modal-img-area');if(p.images&&p.images.length){areaEl.innerHTML=`<button class="modal-close" onclick="closeProductModal()"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6l-12 12"></path></svg></button>${buildImageCarousel((p.images||[]).slice(0,4),'modal')}`;}else{areaEl.innerHTML=`<button class="modal-close" onclick="closeProductModal()"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6l-12 12"></path></svg></button><span id="modal-emoji-display">${p.emoji||'🧁'}</span><img id="modal-img-photo" src="" alt="" style="display:none;width:100%;height:100%;object-fit:cover;">`;}
 document.getElementById('modal-cat').textContent=p.cat;document.getElementById('modal-name').textContent=p.name;document.getElementById('modal-desc').textContent=p.desc||'';document.getElementById('modal-price').textContent='$'+p.price.toLocaleString('es-AR');document.getElementById('modal-qty').textContent=1;const vw=document.getElementById('modal-variants');if(p.variants&&p.variants.trim()){const vs=p.variants.split(',').map(v=>v.trim()).filter(Boolean);vw.innerHTML=`<span class="variant-label">Sabor / Variante</span><div class="variant-pills">${vs.map(v=>`<div class="vpill" onclick="selectVariant(this,'${v}')">${v}</div>`).join('')}</div>`;}else vw.innerHTML='';const btn=document.getElementById('modal-add-btn');if(p.status==='agotado'){btn.textContent='Agotado';btn.disabled=true;}else{btn.textContent='Agregar al Carrito';btn.disabled=false;}document.getElementById('product-modal').classList.add('open');document.body.style.overflow='hidden';activateCarouselDots(document.getElementById('product-modal'));}
 function selectVariant(el,v){document.querySelectorAll('.vpill').forEach(x=>x.classList.remove('active'));el.classList.add('active');selectedVariant=v;}
+function refreshOpenProductModalFromSync(){try{const modal=document.getElementById('product-modal');if(!modal||!modal.classList.contains('open')||!currentProduct)return;const id=currentProduct.id;const qty=modalQty;const variant=selectedVariant;openProduct(id);modalQty=qty;document.getElementById('modal-qty').textContent=qty;selectedVariant=variant||'';if(selectedVariant){Array.from(document.querySelectorAll('#modal-variants .vpill')).forEach(el=>{if(el.textContent.trim()===selectedVariant){el.classList.add('active');}else{el.classList.remove('active');}});}}catch(e){console.log('Modal sync refresh error',e.message);}}
 function closeProductModal(){document.getElementById('product-modal').classList.remove('open');document.body.style.overflow='';}
 function changeQty(d){modalQty=Math.max(1,modalQty+d);document.getElementById('modal-qty').textContent=modalQty;}
 function addToCartFromModal(){if(!currentProduct)return;addToCart(currentProduct,modalQty,selectedVariant);closeProductModal();showToast('✓ Agregado al carrito','success');}
@@ -2960,31 +2964,31 @@ function renderRecurringClients(clients){
 <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore-compat.js"></script>
 <script>
 const firebaseConfig={apiKey:"AIzaSyA4wJ79CawSjE3MHDga33joxR_zorxEEgw",authDomain:"surko1.firebaseapp.com",projectId:"surko1",storageBucket:"surko1.firebasestorage.app",messagingSenderId:"823281056638",appId:"1:823281056638:web:10d0ac88f046739c1a112f"};
-window.__syncReady=false;window.__syncDb=null;window.__syncError=null;window.__syncMode='iniciando';
+window.__syncReady=false;window.__syncDb=null;window.__syncError=null;window.__syncMode='iniciando';window.__lastCloudStateMs=0;
 (function(){
   const syncKeys=['categories','products','config','banner','clients','orders','next_order_id','ticket_template','form_fields','hero_content','promos','banner_img'];
   const baseSet=LS.set.bind(LS),baseGet=LS.get.bind(LS),timers={},pending={},remoteStamp={},localStamp={};
   const clientIdKey='surko_sync_client_id';
-  let bootstrapping=true,authReady=false,db=null;
+  let bootstrapping=true,authReady=false,db=null,unsubState=null,pollTimer=null;
   let clientId=localStorage.getItem(clientIdKey);
   if(!clientId){clientId='client_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2);localStorage.setItem(clientIdKey,clientId);}
   function safeClone(v){try{return JSON.parse(JSON.stringify(v));}catch(e){return v;}}
   function sameValue(a,b){try{return JSON.stringify(a)===JSON.stringify(b);}catch(e){return false;}}
   function docRef(key){return db.collection('surko_sync').doc(key);}
-  function appStateRef(){return db.collection('surko_sync').doc('__app_state__');}
-  function callIfReady(name){const fn=window[name];if(typeof fn==='function'){try{fn();}catch(e){console.log('Sync UI update error',name,e.message);}}}
+  function stateRef(){return db.collection('surko_sync').doc('__app_state__');}
+  function callIfReady(name){const fn=window[name];if(typeof fn==='function'){try{fn();}catch(e){console.log('UI refresh error',name,e.message);}}}
   function updateSyncBadges(){const txt=window.__syncReady?'Sincronizado':(window.__syncError?'Modo local':'Sincronizando');['sync-status-orders','sync-status-products','sync-status-promos','sync-status-config','sync-status'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=txt;});}
   window.updateSyncBadges=updateSyncBadges;
-  function refreshWholeUI(){callIfReady('loadBannerClient');callIfReady('loadConfigClient');callIfReady('renderCategoryTabs');callIfReady('renderPromosClient');callIfReady('renderProducts');callIfReady('updateCartUI');callIfReady('renderProductsTable');callIfReady('renderCategoriesAdmin');callIfReady('renderPromosAdmin');callIfReady('renderOrdersTable');callIfReady('renderClientsAdmin');callIfReady('initAdminDashboard');callIfReady('initMetrics');callIfReady('loadConfig');callIfReady('loadTicketSection');callIfReady('loadFormBuilder');callIfReady('loadHeroEditor');const b=baseGet('banner_img');if(typeof window.applyBannerImg==='function')window.applyBannerImg(b||null);if(typeof window.updateBannerAdminPreview==='function')window.updateBannerAdminPreview(b||null);const h=baseGet('hero_content');if(h&&typeof window.applyHeroContent==='function')window.applyHeroContent(h);}
+  function refreshWholeUI(){callIfReady('loadBannerClient');callIfReady('loadConfigClient');callIfReady('renderCategoryTabs');callIfReady('renderPromosClient');callIfReady('renderProducts');callIfReady('updateCartUI');callIfReady('renderProductsTable');callIfReady('renderCategoriesAdmin');callIfReady('refreshPromoTargetOptions');callIfReady('renderPromosAdmin');callIfReady('renderOrdersTable');callIfReady('renderClientsAdmin');callIfReady('initAdminDashboard');callIfReady('initMetrics');callIfReady('loadConfig');callIfReady('loadTicketSection');callIfReady('loadFormBuilder');callIfReady('loadHeroEditor');callIfReady('refreshOpenProductModalFromSync');const b=baseGet('banner_img');if(typeof window.applyBannerImg==='function')window.applyBannerImg(b||null);if(typeof window.updateBannerAdminPreview==='function')window.updateBannerAdminPreview(b||null);const h=baseGet('hero_content');if(h&&typeof window.applyHeroContent==='function')window.applyHeroContent(h);}
   window.handleSyncedUpdate=function(key){
-    if(key==='categories'){callIfReady('renderCategoryTabs');callIfReady('renderCategoriesAdmin');callIfReady('refreshProductSubcategoryOptions');callIfReady('renderProducts');}
-    if(key==='products'){callIfReady('renderProducts');callIfReady('renderProductsTable');callIfReady('refreshPromoTargetOptions');callIfReady('updateCartUI');callIfReady('renderPromosAdmin');}
+    if(key==='categories'){callIfReady('renderCategoryTabs');callIfReady('renderCategoriesAdmin');callIfReady('refreshProductSubcategoryOptions');callIfReady('refreshPromoTargetOptions');callIfReady('renderProducts');}
+    if(key==='products'){callIfReady('renderProducts');callIfReady('renderProductsTable');callIfReady('refreshPromoTargetOptions');callIfReady('refreshOpenProductModalFromSync');callIfReady('updateCartUI');callIfReady('renderPromosAdmin');callIfReady('renderPromosClient');}
     if(key==='promos'){callIfReady('renderPromosClient');callIfReady('renderPromosAdmin');callIfReady('renderProducts');callIfReady('updateCartUI');}
     if(key==='orders'){callIfReady('renderOrdersTable');callIfReady('initAdminDashboard');callIfReady('initMetrics');}
     if(key==='clients'){callIfReady('renderClientsAdmin');callIfReady('initMetrics');}
     if(key==='config'){callIfReady('loadConfigClient');callIfReady('loadConfig');}
     if(key==='banner'){callIfReady('loadBannerClient');callIfReady('loadBannerAdmin');}
-    if(key==='banner_img'){const s=baseGet('banner_img');if(typeof window.applyBannerImg==='function')window.applyBannerImg(s||null);if(typeof window.updateBannerAdminPreview==='function')window.updateBannerAdminPreview(s||null);const rb=document.getElementById('remove-banner-img-btn');if(rb)rb.style.display=s?'block':'none';}
+    if(key==='banner_img'){const img=baseGet('banner_img');if(typeof window.applyBannerImg==='function')window.applyBannerImg(img||null);if(typeof window.updateBannerAdminPreview==='function')window.updateBannerAdminPreview(img||null);const rb=document.getElementById('remove-banner-img-btn');if(rb)rb.style.display=img?'block':'none';}
     if(key==='hero_content'){const h=baseGet('hero_content');if(h&&typeof window.applyHeroContent==='function')window.applyHeroContent(h);callIfReady('loadHeroEditor');}
     if(key==='ticket_template')callIfReady('loadTicketSection');
     if(key==='form_fields'){callIfReady('loadFormBuilder');callIfReady('renderCartFormFields');callIfReady('updateCartUI');}
@@ -2992,38 +2996,84 @@ window.__syncReady=false;window.__syncDb=null;window.__syncError=null;window.__s
   };
   async function pushKey(key,value){
     if(!db||!syncKeys.includes(key))return;
-    const payload=typeof value==='undefined'?baseGet(key):value,stamp=Date.now();localStamp[key]=stamp;
-    try{const data={value:safeClone(payload),updatedAtMs:stamp,updatedAt:new Date(stamp).toISOString(),clientId};await docRef(key).set(data,{merge:true});await appStateRef().set({[key]:safeClone(payload),['_meta_'+key]:{updatedAtMs:stamp,updatedAt:new Date(stamp).toISOString(),clientId}},{merge:true});window.__syncReady=true;window.__syncError=null;window.__syncMode='online';updateSyncBadges();}
-    catch(err){pending[key]=payload;window.__syncReady=false;window.__syncError=err.message;window.__syncMode='local';console.log('Sync push error',key,err.message);updateSyncBadges();}
+    const payload=typeof value==='undefined'?baseGet(key):value;
+    const stamp=Date.now();localStamp[key]=stamp;
+    try{
+      const meta={updatedAtMs:stamp,updatedAt:new Date(stamp).toISOString(),clientId};
+      const data={value:safeClone(payload),...meta};
+      await docRef(key).set(data,{merge:true});
+      await stateRef().set({[key]:safeClone(payload),['_meta_'+key]:meta,__updatedAtMs:stamp,__clientId:clientId,__updatedAt:new Date(stamp).toISOString()},{merge:true});
+      window.__lastCloudStateMs=stamp;window.__syncReady=true;window.__syncError=null;window.__syncMode='online';updateSyncBadges();
+    }catch(err){pending[key]=payload;window.__syncReady=false;window.__syncError=err.message;window.__syncMode='local';console.log('Sync push error',key,err.message);updateSyncBadges();}
   }
-  function schedulePush(key,value){if(!syncKeys.includes(key))return;pending[key]=value;if(bootstrapping||!authReady||!db)return;clearTimeout(timers[key]);timers[key]=setTimeout(()=>{const v=pending[key];delete pending[key];pushKey(key,v);},220);}
+  function schedulePush(key,value){if(!syncKeys.includes(key))return;pending[key]=safeClone(value);if(bootstrapping||!authReady||!db)return;clearTimeout(timers[key]);timers[key]=setTimeout(()=>{const v=pending[key];delete pending[key];pushKey(key,v);},180);}
   LS.set=function(key,value){baseSet(key,value);schedulePush(key,value);};
-  function applyRemote(key,value,stamp){if(!sameValue(value,baseGet(key))){baseSet(key,value);if(typeof window.handleSyncedUpdate==='function')window.handleSyncedUpdate(key);}if(stamp)remoteStamp[key]=stamp;}
+  function applyRemote(key,value,stamp){
+    if(typeof value==='undefined')return;
+    if(stamp&&localStamp[key]&&stamp<localStamp[key]&&sameValue(value,baseGet(key)))return;
+    if(!sameValue(value,baseGet(key))){baseSet(key,safeClone(value));if(typeof window.handleSyncedUpdate==='function')window.handleSyncedUpdate(key);}else{if(stamp)remoteStamp[key]=stamp;}
+    if(stamp)remoteStamp[key]=stamp;
+  }
+  function applyState(state){
+    if(!state)return false;
+    let changed=false;
+    syncKeys.forEach(key=>{
+      if(typeof state[key]==='undefined')return;
+      const meta=state['_meta_'+key]||{};
+      const stamp=Number(meta.updatedAtMs)||Number(state.__updatedAtMs)||0;
+      if(stamp&&remoteStamp[key]&&stamp<remoteStamp[key])return;
+      const before=baseGet(key);
+      applyRemote(key,state[key],stamp);
+      if(!sameValue(before,baseGet(key)))changed=true;
+    });
+    const stateMs=Number(state.__updatedAtMs)||0;if(stateMs)window.__lastCloudStateMs=stateMs;
+    if(changed)refreshWholeUI();
+    return changed;
+  }
+  async function readFullCloud(){
+    let anyRemote=false;
+    const appSnap=await stateRef().get().catch(e=>{throw e;});
+    if(appSnap.exists){const st=appSnap.data()||{};applyState(st);syncKeys.forEach(k=>{if(typeof st[k]!=='undefined')anyRemote=true;});}
+    for(const key of syncKeys){
+      const snap=await docRef(key).get().catch(()=>null);
+      if(snap&&snap.exists&&snap.data()&&typeof snap.data().value!=='undefined'){
+        const data=snap.data(),stamp=Number(data.updatedAtMs)||0;
+        if(!remoteStamp[key]||stamp>=remoteStamp[key])applyRemote(key,data.value,stamp);
+        anyRemote=true;
+      }
+    }
+    return anyRemote;
+  }
   async function flushPending(){if(!db||!authReady)return;for(const key of Object.keys(pending)){const v=pending[key];delete pending[key];await pushKey(key,v);}}
+  function startRealtime(){
+    if(unsubState)try{unsubState();}catch(e){}
+    unsubState=stateRef().onSnapshot(doc=>{if(!doc.exists)return;applyState(doc.data()||{});window.__syncReady=true;window.__syncError=null;window.__syncMode='online';updateSyncBadges();},err=>{window.__syncReady=false;window.__syncError=err.message;console.log('Sync state listener error',err.message);updateSyncBadges();});
+    syncKeys.forEach(key=>{docRef(key).onSnapshot(doc=>{if(!doc.exists)return;const data=doc.data()||{};if(typeof data.value==='undefined')return;const stamp=Number(data.updatedAtMs)||0;if(stamp&&localStamp[key]&&data.clientId===clientId&&stamp<=localStamp[key])return;if(stamp&&remoteStamp[key]&&stamp<remoteStamp[key])return;applyRemote(key,data.value,stamp);window.__syncReady=true;window.__syncError=null;window.__syncMode='online';updateSyncBadges();},err=>{window.__syncReady=false;window.__syncError=err.message;console.log('Sync doc listener error',key,err.message);updateSyncBadges();});});
+    clearInterval(pollTimer);
+    pollTimer=setInterval(async()=>{if(!db)return;try{await readFullCloud();window.__syncReady=true;window.__syncError=null;window.__syncMode='online';updateSyncBadges();}catch(e){window.__syncReady=false;window.__syncError=e.message;updateSyncBadges();}},3500);
+    document.addEventListener('visibilitychange',()=>{if(!document.hidden&&db)window.forceCloudReload&&window.forceCloudReload();});
+    window.addEventListener('online',()=>{if(db)flushPending().then(()=>window.forceCloudReload&&window.forceCloudReload());});
+  }
   async function initFirebase(){
     try{
       if(!window.firebase||!firebase.firestore)throw new Error('Firebase no disponible');
       if(!firebase.apps.length)firebase.initializeApp(firebaseConfig);
       try{firebase.firestore().settings({ignoreUndefinedProperties:true});}catch(e){}
       db=firebase.firestore();window.__syncDb=db;
-      try{await firebase.auth().signInAnonymously();}catch(authErr){console.log('Firebase auth anon error, se intenta sin auth:',authErr.message);}
+      try{await firebase.auth().signInAnonymously();}catch(authErr){console.log('Auth anónima no disponible, se intenta Firestore directo:',authErr.message);}
       authReady=true;
-      let anyRemote=false;
-      const appSnap=await appStateRef().get().catch(()=>null);
-      if(appSnap&&appSnap.exists){const state=appSnap.data()||{};syncKeys.forEach(key=>{if(typeof state[key]!=='undefined'){const meta=state['_meta_'+key]||{};applyRemote(key,state[key],Number(meta.updatedAtMs)||0);anyRemote=true;}});}
-      for(const key of syncKeys){const snap=await docRef(key).get().catch(()=>null);if(snap&&snap.exists&&snap.data()&&typeof snap.data().value!=='undefined'){const data=snap.data(),stamp=Number(data.updatedAtMs)||0;if(!remoteStamp[key]||stamp>=remoteStamp[key])applyRemote(key,data.value,stamp);anyRemote=true;}}
-      bootstrapping=false;window.__syncReady=true;window.__syncError=null;window.__syncMode='online';updateSyncBadges();refreshWholeUI();
-      for(const key of syncKeys){docRef(key).onSnapshot(doc=>{if(!doc.exists)return;const data=doc.data()||{};if(typeof data.value==='undefined')return;const stamp=Number(data.updatedAtMs)||0;if(stamp&&localStamp[key]&&data.clientId===clientId&&stamp<=localStamp[key])return;if(stamp&&remoteStamp[key]&&stamp<remoteStamp[key])return;applyRemote(key,data.value,stamp);window.__syncReady=true;window.__syncError=null;updateSyncBadges();},err=>{window.__syncReady=false;window.__syncError=err.message;console.log('Sync listener error',key,err.message);updateSyncBadges();});}
-      if(!anyRemote){for(const key of syncKeys){if(baseGet(key)!==null)pending[key]=baseGet(key);}}
+      const anyRemote=await readFullCloud();
+      bootstrapping=false;window.__syncReady=true;window.__syncError=null;window.__syncMode='online';updateSyncBadges();refreshWholeUI();startRealtime();
+      if(!anyRemote){syncKeys.forEach(key=>{if(baseGet(key)!==null)pending[key]=baseGet(key);});}
       await flushPending();
-    }catch(err){bootstrapping=false;window.__syncReady=false;window.__syncError=err.message;window.__syncMode='local';console.log('Sync bootstrap fallback to local mode',err.message);updateSyncBadges();}
+    }catch(err){bootstrapping=false;window.__syncReady=false;window.__syncError=err.message;window.__syncMode='local';console.log('Sync fallback local:',err.message);updateSyncBadges();}
   }
   window.forceCloudSync=function(){syncKeys.forEach(k=>pending[k]=baseGet(k));return flushPending();};
-  window.forceCloudReload=async function(){if(!db)return;for(const key of syncKeys){const snap=await docRef(key).get();if(snap.exists&&snap.data()&&typeof snap.data().value!=='undefined')applyRemote(key,snap.data().value,Number(snap.data().updatedAtMs)||0);}refreshWholeUI();};
+  window.forceCloudReload=async function(){if(!db)return;await readFullCloud();refreshWholeUI();};
+  window.resetLocalAndReloadFromCloud=async function(){syncKeys.forEach(k=>localStorage.removeItem('surko_'+k));if(db){await readFullCloud();refreshWholeUI();}else location.reload();};
   initFirebase();
 })();
 </script>
-
 <style>
 .cart-promo-progress { background: rgba(16,185,129,.07); border: 1px solid rgba(16,185,129,.2); border-radius: 10px; padding: .65rem .85rem; margin-bottom: .5rem; font-size: .75rem; }
 .cart-promo-progress .promo-progress-label { color: #0d7a56; font-weight: 700; margin-bottom: .4rem; }
