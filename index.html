@@ -2976,22 +2976,26 @@ window.__syncReady=false;window.__syncDb=null;window.__syncError=null;window.__s
   const syncKeys=['categories','products','config','banner','clients','orders','next_order_id','ticket_template','form_fields','hero_content','promos','banner_img'];
   const baseSet=LS.set.bind(LS),baseGet=LS.get.bind(LS),timers={},pending={},remoteStamp={},localStamp={};
   const clientIdKey='surko_sync_client_id';
-  let bootstrapping=true,authReady=false,db=null,unsubState=null,pollTimer=null;
+  let bootstrapping=true,authReady=false,db=null,unsubState=null,pollTimer=null,flushTimer=null;
+  const unsubDocs=[];
+  const channel=typeof BroadcastChannel!=='undefined'?new BroadcastChannel('surko_sync_live'):null;
   let clientId=localStorage.getItem(clientIdKey);
   if(!clientId){clientId='client_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2);localStorage.setItem(clientIdKey,clientId);}
   function safeClone(v){try{return JSON.parse(JSON.stringify(v));}catch(e){return v;}}
   function sameValue(a,b){try{return JSON.stringify(a)===JSON.stringify(b);}catch(e){return false;}}
   function docRef(key){return db.collection('surko_sync').doc(key);}
   function stateRef(){return db.collection('surko_sync').doc('__app_state__');}
+  function stampFrom(data){return Number(data&&data.updatedAtMs)||Number(data&&data.__updatedAtMs)||0;}
   function callIfReady(name){const fn=window[name];if(typeof fn==='function'){try{fn();}catch(e){console.log('UI refresh error',name,e.message);}}}
+  function setSyncState(ready,error,mode){window.__syncReady=!!ready;window.__syncError=error||null;window.__syncMode=mode||(ready?'online':'local');updateSyncBadges();}
   function updateSyncBadges(){const txt=window.__syncReady?'Sincronizado':(window.__syncError?'Modo local':'Sincronizando');['sync-status-orders','sync-status-products','sync-status-promos','sync-status-config','sync-status'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=txt;});}
   window.updateSyncBadges=updateSyncBadges;
   function refreshWholeUI(){callIfReady('loadBannerClient');callIfReady('loadConfigClient');callIfReady('renderCategoryTabs');callIfReady('renderPromosClient');callIfReady('renderProducts');callIfReady('updateCartUI');callIfReady('renderProductsTable');callIfReady('renderCategoriesAdmin');callIfReady('refreshPromoTargetOptions');callIfReady('renderPromosAdmin');callIfReady('renderOrdersTable');callIfReady('renderClientsAdmin');callIfReady('initAdminDashboard');callIfReady('initMetrics');callIfReady('loadConfig');callIfReady('loadTicketSection');callIfReady('loadFormBuilder');callIfReady('loadHeroEditor');callIfReady('refreshOpenProductModalFromSync');const b=baseGet('banner_img');if(typeof window.applyBannerImg==='function')window.applyBannerImg(b||null);if(typeof window.updateBannerAdminPreview==='function')window.updateBannerAdminPreview(b||null);const h=baseGet('hero_content');if(h&&typeof window.applyHeroContent==='function')window.applyHeroContent(h);}
   window.handleSyncedUpdate=function(key){
     if(key==='categories'){callIfReady('renderCategoryTabs');callIfReady('renderCategoriesAdmin');callIfReady('refreshProductSubcategoryOptions');callIfReady('refreshPromoTargetOptions');callIfReady('renderProducts');}
-    if(key==='products'){callIfReady('renderProducts');callIfReady('renderProductsTable');callIfReady('refreshPromoTargetOptions');callIfReady('refreshOpenProductModalFromSync');callIfReady('updateCartUI');callIfReady('renderPromosAdmin');callIfReady('renderPromosClient');}
+    if(key==='products'){callIfReady('renderProducts');callIfReady('renderProductsTable');callIfReady('refreshPromoTargetOptions');callIfReady('refreshOpenProductModalFromSync');callIfReady('updateCartUI');callIfReady('renderPromosAdmin');callIfReady('renderPromosClient');callIfReady('initAdminDashboard');callIfReady('initMetrics');}
     if(key==='promos'){callIfReady('renderPromosClient');callIfReady('renderPromosAdmin');callIfReady('renderProducts');callIfReady('updateCartUI');}
-    if(key==='orders'){callIfReady('renderOrdersTable');callIfReady('initAdminDashboard');callIfReady('initMetrics');}
+    if(key==='orders'||key==='next_order_id'){callIfReady('renderOrdersTable');callIfReady('initAdminDashboard');callIfReady('initMetrics');}
     if(key==='clients'){callIfReady('renderClientsAdmin');callIfReady('initMetrics');}
     if(key==='config'){callIfReady('loadConfigClient');callIfReady('loadConfig');}
     if(key==='banner'){callIfReady('loadBannerClient');callIfReady('loadBannerAdmin');}
@@ -3001,25 +3005,34 @@ window.__syncReady=false;window.__syncDb=null;window.__syncError=null;window.__s
     if(key==='form_fields'){callIfReady('loadFormBuilder');callIfReady('renderCartFormFields');callIfReady('updateCartUI');}
     updateSyncBadges();
   };
+  function announceLocalChange(key,value){
+    try{window.dispatchEvent(new CustomEvent('surko:sync-change',{detail:{key,value:safeClone(value),source:'local'}}));}catch(e){}
+    if(channel)try{channel.postMessage({key,value:safeClone(value),clientId,stamp:localStamp[key]||Date.now()});}catch(e){}
+  }
   async function pushKey(key,value){
     if(!db||!syncKeys.includes(key))return;
     const payload=typeof value==='undefined'?baseGet(key):value;
     const stamp=Date.now();localStamp[key]=stamp;
     try{
       const meta={updatedAtMs:stamp,updatedAt:new Date(stamp).toISOString(),clientId};
-      const data={value:safeClone(payload),...meta};
-      await docRef(key).set(data,{merge:true});
-      await stateRef().set({[key]:safeClone(payload),['_meta_'+key]:meta,__updatedAtMs:stamp,__clientId:clientId,__updatedAt:new Date(stamp).toISOString()},{merge:true});
-      window.__lastCloudStateMs=stamp;window.__syncReady=true;window.__syncError=null;window.__syncMode='online';updateSyncBadges();
-    }catch(err){pending[key]=payload;window.__syncReady=false;window.__syncError=err.message;window.__syncMode='local';console.log('Sync push error',key,err.message);updateSyncBadges();}
+      await docRef(key).set({value:safeClone(payload),...meta},{merge:true});
+      await stateRef().set({['_meta_'+key]:meta,__lastChangedKey:key,__updatedAtMs:stamp,__clientId:clientId,__updatedAt:new Date(stamp).toISOString()},{merge:true});
+      window.__lastCloudStateMs=stamp;setSyncState(true,null,'online');
+    }catch(err){pending[key]=safeClone(payload);setSyncState(false,err.message,'local');console.log('Sync push error',key,err.message);}
   }
-  function schedulePush(key,value){if(!syncKeys.includes(key))return;pending[key]=safeClone(value);if(bootstrapping||!authReady||!db)return;clearTimeout(timers[key]);timers[key]=setTimeout(()=>{const v=pending[key];delete pending[key];pushKey(key,v);},180);}
-  LS.set=function(key,value){baseSet(key,value);schedulePush(key,value);};
+  function queueFlush(){if(bootstrapping||!authReady||!db)return;clearTimeout(flushTimer);flushTimer=setTimeout(()=>flushPending(),60);}
+  function schedulePush(key,value){if(!syncKeys.includes(key))return;pending[key]=safeClone(value);queueFlush();}
+  LS.set=function(key,value){baseSet(key,value);if(syncKeys.includes(key)){localStamp[key]=Date.now();announceLocalChange(key,value);schedulePush(key,value);}};
   function applyRemote(key,value,stamp){
-    if(typeof value==='undefined')return;
-    if(stamp&&localStamp[key]&&stamp<localStamp[key]&&sameValue(value,baseGet(key)))return;
-    if(!sameValue(value,baseGet(key))){baseSet(key,safeClone(value));if(typeof window.handleSyncedUpdate==='function')window.handleSyncedUpdate(key);}else{if(stamp)remoteStamp[key]=stamp;}
+    if(typeof value==='undefined'||!syncKeys.includes(key))return false;
+    if(stamp&&localStamp[key]&&stamp<=localStamp[key]&&sameValue(value,baseGet(key))){remoteStamp[key]=Math.max(remoteStamp[key]||0,stamp);return false;}
+    if(stamp&&remoteStamp[key]&&stamp<remoteStamp[key])return false;
+    if(sameValue(value,baseGet(key))){if(stamp)remoteStamp[key]=stamp;return false;}
+    baseSet(key,safeClone(value));
     if(stamp)remoteStamp[key]=stamp;
+    try{window.dispatchEvent(new CustomEvent('surko:sync-change',{detail:{key,value:safeClone(value),source:'remote'}}));}catch(e){}
+    if(typeof window.handleSyncedUpdate==='function')window.handleSyncedUpdate(key);
+    return true;
   }
   function applyState(state){
     if(!state)return false;
@@ -3028,10 +3041,7 @@ window.__syncReady=false;window.__syncDb=null;window.__syncError=null;window.__s
       if(typeof state[key]==='undefined')return;
       const meta=state['_meta_'+key]||{};
       const stamp=Number(meta.updatedAtMs)||Number(state.__updatedAtMs)||0;
-      if(stamp&&remoteStamp[key]&&stamp<remoteStamp[key])return;
-      const before=baseGet(key);
-      applyRemote(key,state[key],stamp);
-      if(!sameValue(before,baseGet(key)))changed=true;
+      if(applyRemote(key,state[key],stamp))changed=true;
     });
     const stateMs=Number(state.__updatedAtMs)||0;if(stateMs)window.__lastCloudStateMs=stateMs;
     if(changed)refreshWholeUI();
@@ -3040,40 +3050,47 @@ window.__syncReady=false;window.__syncDb=null;window.__syncError=null;window.__s
   async function readFullCloud(){
     let anyRemote=false;
     const appSnap=await stateRef().get().catch(e=>{throw e;});
-    if(appSnap.exists){const st=appSnap.data()||{};applyState(st);syncKeys.forEach(k=>{if(typeof st[k]!=='undefined')anyRemote=true;});}
+    if(appSnap.exists){const st=appSnap.data()||{};applyState(st);syncKeys.forEach(k=>{if(typeof st[k]!=='undefined'||st['_meta_'+k])anyRemote=true;});}
     for(const key of syncKeys){
       const snap=await docRef(key).get().catch(()=>null);
       if(snap&&snap.exists&&snap.data()&&typeof snap.data().value!=='undefined'){
-        const data=snap.data(),stamp=Number(data.updatedAtMs)||0;
+        const data=snap.data(),stamp=stampFrom(data);
         if(!remoteStamp[key]||stamp>=remoteStamp[key])applyRemote(key,data.value,stamp);
         anyRemote=true;
       }
     }
     return anyRemote;
   }
-  async function flushPending(){if(!db||!authReady)return;for(const key of Object.keys(pending)){const v=pending[key];delete pending[key];await pushKey(key,v);}}
+  async function flushPending(){
+    if(!db||!authReady)return;
+    const keys=Object.keys(pending);
+    for(const key of keys){const v=pending[key];delete pending[key];await pushKey(key,v);}
+  }
   function startRealtime(){
     if(unsubState)try{unsubState();}catch(e){}
-    unsubState=stateRef().onSnapshot(doc=>{if(!doc.exists)return;applyState(doc.data()||{});window.__syncReady=true;window.__syncError=null;window.__syncMode='online';updateSyncBadges();},err=>{window.__syncReady=false;window.__syncError=err.message;console.log('Sync state listener error',err.message);updateSyncBadges();});
-    syncKeys.forEach(key=>{docRef(key).onSnapshot(doc=>{if(!doc.exists)return;const data=doc.data()||{};if(typeof data.value==='undefined')return;const stamp=Number(data.updatedAtMs)||0;if(stamp&&localStamp[key]&&data.clientId===clientId&&stamp<=localStamp[key])return;if(stamp&&remoteStamp[key]&&stamp<remoteStamp[key])return;applyRemote(key,data.value,stamp);window.__syncReady=true;window.__syncError=null;window.__syncMode='online';updateSyncBadges();},err=>{window.__syncReady=false;window.__syncError=err.message;console.log('Sync doc listener error',key,err.message);updateSyncBadges();});});
+    unsubDocs.splice(0).forEach(fn=>{try{fn();}catch(e){}});
+    unsubState=stateRef().onSnapshot(doc=>{if(doc.exists){applyState(doc.data()||{});setSyncState(true,null,'online');}},err=>{setSyncState(false,err.message,'local');console.log('Sync state listener error',err.message);});
+    syncKeys.forEach(key=>{const unsub=docRef(key).onSnapshot(doc=>{if(!doc.exists)return;const data=doc.data()||{};if(typeof data.value==='undefined')return;const stamp=stampFrom(data);if(data.clientId===clientId&&stamp&&stamp<=localStamp[key]){remoteStamp[key]=Math.max(remoteStamp[key]||0,stamp);setSyncState(true,null,'online');return;}if(applyRemote(key,data.value,stamp))setSyncState(true,null,'online');else setSyncState(true,null,'online');},err=>{setSyncState(false,err.message,'local');console.log('Sync doc listener error',key,err.message);});unsubDocs.push(unsub);});
     clearInterval(pollTimer);
-    pollTimer=setInterval(async()=>{if(!db)return;try{await readFullCloud();window.__syncReady=true;window.__syncError=null;window.__syncMode='online';updateSyncBadges();}catch(e){window.__syncReady=false;window.__syncError=e.message;updateSyncBadges();}},3500);
+    pollTimer=setInterval(async()=>{if(!db)return;try{await readFullCloud();setSyncState(true,null,'online');}catch(e){setSyncState(false,e.message,'local');}},12000);
     document.addEventListener('visibilitychange',()=>{if(!document.hidden&&db)window.forceCloudReload&&window.forceCloudReload();});
     window.addEventListener('online',()=>{if(db)flushPending().then(()=>window.forceCloudReload&&window.forceCloudReload());});
   }
+  if(channel)channel.onmessage=function(ev){const msg=ev.data||{};if(!msg.key||msg.clientId===clientId)return;if(syncKeys.includes(msg.key)&&!sameValue(msg.value,baseGet(msg.key))){baseSet(msg.key,safeClone(msg.value));if(typeof window.handleSyncedUpdate==='function')window.handleSyncedUpdate(msg.key);}};
+  window.addEventListener('storage',e=>{if(!e.key||!e.key.startsWith('surko_'))return;const key=e.key.replace('surko_','');if(!syncKeys.includes(key))return;try{const value=JSON.parse(e.newValue);if(!sameValue(value,baseGet(key))){baseSet(key,value);if(typeof window.handleSyncedUpdate==='function')window.handleSyncedUpdate(key);}}catch(err){}});
   async function initFirebase(){
     try{
       if(!window.firebase||!firebase.firestore)throw new Error('Firebase no disponible');
       if(!firebase.apps.length)firebase.initializeApp(firebaseConfig);
       try{firebase.firestore().settings({ignoreUndefinedProperties:true});}catch(e){}
       db=firebase.firestore();window.__syncDb=db;
-      try{await firebase.auth().signInAnonymously();}catch(authErr){console.log('Auth anónima no disponible, se intenta Firestore directo:',authErr.message);}
+      try{await firebase.auth().signInAnonymously();}catch(authErr){console.log('Auth anonima no disponible, se intenta Firestore directo:',authErr.message);}
       authReady=true;
       const anyRemote=await readFullCloud();
-      bootstrapping=false;window.__syncReady=true;window.__syncError=null;window.__syncMode='online';updateSyncBadges();refreshWholeUI();startRealtime();
+      bootstrapping=false;setSyncState(true,null,'online');refreshWholeUI();startRealtime();
       if(!anyRemote){syncKeys.forEach(key=>{if(baseGet(key)!==null)pending[key]=baseGet(key);});}
       await flushPending();
-    }catch(err){bootstrapping=false;window.__syncReady=false;window.__syncError=err.message;window.__syncMode='local';console.log('Sync fallback local:',err.message);updateSyncBadges();}
+    }catch(err){bootstrapping=false;setSyncState(false,err.message,'local');console.log('Sync fallback local:',err.message);}
   }
   window.forceCloudSync=function(){syncKeys.forEach(k=>pending[k]=baseGet(k));return flushPending();};
   window.forceCloudReload=async function(){if(!db)return;await readFullCloud();refreshWholeUI();};
