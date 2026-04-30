@@ -3088,7 +3088,6 @@ window.__syncReady=false;window.__syncDb=null;window.__syncError=null;window.__s
       authReady=true;
       const anyRemote=await readFullCloud();
       bootstrapping=false;setSyncState(true,null,'online');refreshWholeUI();startRealtime();
-      if(!anyRemote){syncKeys.forEach(key=>{if(baseGet(key)!==null)pending[key]=baseGet(key);});}
       await flushPending();
     }catch(err){bootstrapping=false;setSyncState(false,err.message,'local');console.log('Sync fallback local:',err.message);}
   }
@@ -3184,4 +3183,3 @@ window.__syncReady=false;window.__syncDb=null;window.__syncError=null;window.__s
 
 </body>
 </html>
-
